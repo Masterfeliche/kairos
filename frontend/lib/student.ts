@@ -75,13 +75,20 @@ export const LEVEL_LABELS: Record<string, string> = {
 
 export const LEVEL_ORDER = ["beng", "diploma", "btech", "masters"];
 
-export function hm(t: string): string {
-  return t.slice(0, 5);
+export const LEVEL_SHORT: Record<string, string> = {
+  beng: "BEng",
+  diploma: "Diploma",
+  btech: "BTech",
+  masters: "Masters",
+};
+
+/** "lecture" → "Lecture" (types come from the PDF in mixed case). */
+export function sentence(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-export function todayWeekday(): number {
-  const d = new Date().getDay();
-  return d >= 1 && d <= 5 ? d : 1;
+export function hm(t: string): string {
+  return t.slice(0, 5);
 }
 
 export const LIVE_LABELS: Record<LiveStatus, string> = {
@@ -94,6 +101,24 @@ export const LIVE_LABELS: Record<LiveStatus, string> = {
 export function toMin(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
+}
+
+/** Is this session happening at `minutes` (campus time)? A CR's "live" mark always wins. */
+export function isCurrent(s: PublicSession, minutes: number): boolean {
+  if (s.live_status === "live") return true;
+  if (s.live_status !== "scheduled") return false;
+  return toMin(s.start_time) <= minutes && minutes < toMin(s.end_time);
+}
+
+/** The class on now and the next one to start, from one day's sessions sorted by start. */
+export function nowAndNext(
+  daySessions: PublicSession[],
+  minutes: number,
+): { current: PublicSession | undefined; next: PublicSession | undefined } {
+  const held = daySessions.filter((s) => s.live_status !== "not_held");
+  const current = held.find((s) => s.live_status === "live") ?? held.find((s) => isCurrent(s, minutes));
+  const next = held.find((s) => s !== current && toMin(s.start_time) > minutes);
+  return { current, next };
 }
 
 // Grid geometry shared by the week view (start 07:00, 30-minute slots).

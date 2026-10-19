@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BellRing } from "lucide-react";
 import { hm, type VenueNotice } from "@/lib/student";
 
 /** Shows CR heads-ups for venues used on the viewed day so people can vacate in time. */
@@ -15,20 +15,25 @@ export default function VenueNoticeBanner({
   if (relevant.length === 0) return null;
 
   return (
-    <Alert className="border-warning bg-warning/10 text-foreground">
-      <AlertTitle>Venue heads-up</AlertTitle>
-      <AlertDescription>
-        <ul className="list-disc space-y-0.5 pl-4">
-          {relevant.map((n) => (
-            <li key={n.id}>
-              <span className="font-medium">{n.venue}</span> is needed
-              {n.cohort_code ? ` by ${n.cohort_code}` : ""} from {hm(n.start_time)}
-              {n.end_time ? `–${hm(n.end_time)}` : ""} — please vacate in time
-              {n.note ? ` · ${n.note}` : ""}.
-            </li>
-          ))}
-        </ul>
-      </AlertDescription>
-    </Alert>
+    <aside
+      aria-label="Venue heads-up"
+      className="flex gap-2.5 rounded-2xl border border-warning/35 bg-warning/10 px-3.5 py-3 text-foreground"
+    >
+      <BellRing className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+      <ul className="space-y-2 text-[13px] leading-snug">
+        {relevant.map((n) => (
+          <li key={n.id}>
+            <p className="font-semibold">
+              {n.venue} is needed at <span className="font-mono">{hm(n.start_time)}</span>
+              {n.end_time ? <span className="font-mono">–{hm(n.end_time)}</span> : null}
+            </p>
+            <p className="text-muted-foreground">
+              {n.cohort_code ? `${n.cohort_code} has the room next` : "Someone has the room next"} — please
+              leave on time{n.note ? ` · ${n.note}` : ""}.
+            </p>
+          </li>
+        ))}
+      </ul>
+    </aside>
   );
 }

@@ -37,10 +37,10 @@ export default function PwaRegister() {
     <div
       role="status"
       aria-live="polite"
-      className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-amber-500/90 px-4 py-2 text-xs font-semibold text-slate-950 backdrop-blur-sm shadow-sm"
+      className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-warning px-4 py-2 text-xs font-semibold text-warning-foreground shadow-sm"
     >
       <WifiOff className="size-3.5 shrink-0" aria-hidden="true" />
-      <span>You are currently offline. Viewing cached timetable data.</span>
+      <span>You’re offline — showing the last saved timetable.</span>
     </div>
   );
 }

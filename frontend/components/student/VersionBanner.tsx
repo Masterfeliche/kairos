@@ -1,11 +1,14 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { CAMPUS_TZ } from "@/lib/time";
 
 function fmtDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  return new Date(iso).toLocaleDateString("en-GB", {
+    timeZone: CAMPUS_TZ,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export type BannerVersion = {
@@ -16,6 +19,7 @@ export type BannerVersion = {
   updated_at?: string | null;
 };
 
+/** One-line trust signal: which timetable this is and when it last changed. */
 export default function VersionBanner({ version }: { version: BannerVersion | null }) {
   if (!version) {
     return (
@@ -25,14 +29,19 @@ export default function VersionBanner({ version }: { version: BannerVersion | nu
     );
   }
   const updated = fmtDate(version.updated_at ?? version.published_at);
+  const preview = Boolean(version.is_preview);
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
-      <span className="font-medium text-foreground">{version.label}</span>
-      {updated && <span>· updated {updated}</span>}
-      {version.source_filename && <span className="truncate">· {version.source_filename}</span>}
-      {version.is_preview && (
-        <Badge className="bg-warning text-warning-foreground">Preview — not published</Badge>
-      )}
-    </div>
+    <p
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+      title={version.source_filename ?? undefined}
+    >
+      <span className={`size-[7px] shrink-0 rounded-full ${preview ? "bg-warning" : "bg-success"}`} aria-hidden />
+      <span>
+        <strong className="font-semibold text-foreground">{preview ? "Preview — not published" : "Official"}</strong>
+        {" · "}
+        {version.label}
+        {updated && ` · updated ${updated}`}
+      </span>
+    </p>
   );
 }

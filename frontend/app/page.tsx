@@ -4,7 +4,6 @@ import MobileTabBar from "@/components/student/MobileTabBar";
 import VersionBanner from "@/components/student/VersionBanner";
 import ContinueCard from "@/components/student/ContinueCard";
 import ProgrammePicker from "@/components/student/ProgrammePicker";
-import Hero from "@/components/landing/Hero";
 import { serverApi } from "@/lib/server-api";
 import type { Programme, PublicVersion } from "@/lib/student";
 
@@ -15,30 +14,25 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+    <div className="flex min-h-screen flex-col pb-20 md:pb-0">
       <SiteHeader />
-      <main className="flex-1">
-        <Hero />
+      <main className="mx-auto w-full max-w-2xl flex-1 space-y-6 px-4 py-6 sm:py-10">
+        <div>
+          <h1 className="text-[1.625rem] font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
+            Your class timetable
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Official DIT teaching timetable · no login needed
+          </p>
+        </div>
 
-        {/* Class finder */}
-        <section id="classes" className="border-t border-border/70 bg-card/30">
-          <div className="mx-auto max-w-3xl scroll-mt-20 px-4 py-12 sm:py-16">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                Find your class
-              </h2>
-              <p className="mt-2 text-muted-foreground">
-                Choose your programme and section to open the timetable.
-              </p>
-            </div>
+        <ContinueCard />
 
-            <div className="mt-8 space-y-4">
-              <VersionBanner version={version} />
-              <ContinueCard />
-              <ProgrammePicker programmes={programmes ?? []} />
-            </div>
-          </div>
+        <section id="classes" aria-label="Find a class" className="scroll-mt-20">
+          <ProgrammePicker programmes={programmes ?? []} />
         </section>
+
+        <VersionBanner version={version} />
       </main>
 
       <SiteFooter />

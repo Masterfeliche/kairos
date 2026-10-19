@@ -10,7 +10,8 @@ import TimetableView from "@/components/timetable/TimetableView";
 import SessionControls from "@/components/cr/SessionControls";
 import NoticesPanel from "@/components/cr/NoticesPanel";
 import { api, ApiError } from "@/lib/api";
-import { toMin, todayWeekday, type PublicSession, type VenueNotice } from "@/lib/student";
+import { toMin, type PublicSession, type VenueNotice } from "@/lib/student";
+import { campusNow } from "@/lib/time";
 import type { CrTimetable } from "@/lib/cr";
 
 export default function CrPage() {
@@ -23,9 +24,9 @@ export default function CrPage() {
 
 function CrContent() {
   const sp = useSearchParams();
-  const today = todayWeekday();
+  const [clock] = useState(() => campusNow());
   const requestedDay = Number(sp.get("day"));
-  const day = requestedDay >= 1 && requestedDay <= 5 ? requestedDay : today;
+  const day = requestedDay >= 1 && requestedDay <= 5 ? requestedDay : clock.today || 1;
   const view = sp.get("view") === "week" ? "week" : "day";
 
   const [data, setData] = useState<CrTimetable | null>(null);
@@ -105,8 +106,6 @@ function CrContent() {
     [reload],
   );
 
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const venues = new Set(
     (data?.sessions ?? [])
       .filter((s) => s.day_of_week === day)
@@ -150,15 +149,14 @@ function CrContent() {
           </div>
 
           <VersionBanner version={data.version} />
-          <VenueNoticeBanner notices={notices} venues={venues} />
 
           <TimetableView
             sessions={data.sessions}
             basePath="/cr"
             day={day}
             view={view}
-            today={today}
-            nowMinutes={nowMinutes}
+            clock={clock}
+            dayBanner={<VenueNoticeBanner notices={notices} venues={venues} />}
             sourceFilename={data.version.source_filename ?? null}
             onMove={moveSession}
             onSwap={swapSessions}

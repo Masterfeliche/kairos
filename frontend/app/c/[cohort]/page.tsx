@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import SiteHeader from "@/components/student/SiteHeader";
 import SiteFooter from "@/components/student/SiteFooter";
@@ -7,7 +8,8 @@ import VenueNoticeBanner from "@/components/student/VenueNoticeBanner";
 import TimetableView from "@/components/timetable/TimetableView";
 import ExportCalendarButton from "@/components/timetable/ExportCalendarButton";
 import { serverApi } from "@/lib/server-api";
-import { todayWeekday, type TimetableResponse, type VenueNotice } from "@/lib/student";
+import { campusNow } from "@/lib/time";
+import type { TimetableResponse, VenueNotice } from "@/lib/student";
 
 type Search = { day?: string; view?: string };
 
@@ -27,9 +29,10 @@ export default async function CohortPage({
   );
   if (!data) notFound();
 
-  const today = todayWeekday();
+  // Campus time (EAT), not the server's clock. At weekends nothing is "today"; open Monday.
+  const clock = campusNow();
   const requestedDay = Number(sp.day);
-  const day = requestedDay >= 1 && requestedDay <= 5 ? requestedDay : today;
+  const day = requestedDay >= 1 && requestedDay <= 5 ? requestedDay : clock.today || 1;
   const week = sp.view === "week";
 
   const notices =
@@ -38,32 +41,33 @@ export default async function CohortPage({
     data.sessions.filter((s) => s.day_of_week === day).map((s) => s.venue).filter(Boolean) as string[],
   );
 
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
   return (
-    <div className="flex min-h-screen flex-col pb-16 md:pb-0">
+    <div className="flex min-h-screen flex-col pb-20 md:pb-0">
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Class</p>
-            <h1 className="text-2xl font-bold text-foreground md:text-3xl">{data.cohort.code}</h1>
+      <main className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-4 py-5 sm:py-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">My class</p>
+            <div className="flex items-baseline gap-3">
+              <h1 className="font-mono text-xl font-semibold text-foreground sm:text-2xl">{data.cohort.code}</h1>
+              <Link href="/#classes" className="text-sm font-medium text-primary hover:underline">
+                Change
+              </Link>
+            </div>
           </div>
           <ExportCalendarButton cohortCode={code} />
         </div>
 
         <VersionBanner version={data.version} />
-        {!week && <VenueNoticeBanner notices={notices} venues={venues} />}
 
         <TimetableView
           sessions={data.sessions}
           basePath={`/c/${code}`}
           day={day}
           view={week ? "week" : "day"}
-          today={today}
-          nowMinutes={nowMinutes}
+          clock={clock}
           sourceFilename={data.version.source_filename}
+          dayBanner={<VenueNoticeBanner notices={notices} venues={venues} />}
         />
       </main>
       <SiteFooter />

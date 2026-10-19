@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Download, Copy, Check, ExternalLink } from "lucide-react";
+import { CalendarPlus, Download, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,11 +48,11 @@ export default function ExportCalendarButton({ cohortCode }: ExportCalendarButto
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
-          className="gap-2 border-border bg-card text-foreground hover:bg-muted font-medium"
+          aria-label="Add to calendar"
+          className="size-11 gap-2 rounded-xl border-border bg-card px-0 text-foreground hover:bg-muted sm:h-10 sm:w-auto sm:px-3.5"
         >
-          <Calendar className="size-4 text-primary" aria-hidden="true" />
-          <span>Add to Calendar</span>
+          <CalendarPlus className="size-5 text-primary sm:size-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Add to calendar</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
