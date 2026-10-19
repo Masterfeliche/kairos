@@ -75,7 +75,7 @@ function CrContent() {
             end_time: fmtClock(startMin + duration),
           }),
         });
-        toast.success(`${s.course_name} moved`);
+        toast.success(`${s.course_name} moved for this week`);
         reload();
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not move the class");
@@ -91,7 +91,7 @@ function CrContent() {
           method: "POST",
           body: JSON.stringify({ with_session_id: target.id }),
         });
-        toast.success(`Swapped ${s.course_name} and ${target.course_name}`);
+        toast.success(`Swapped ${s.course_name} and ${target.course_name} for this week`);
         reload();
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Could not swap the classes");

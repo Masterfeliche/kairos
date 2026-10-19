@@ -79,7 +79,7 @@ export default function VenueNoticeDialog({
           <DialogTitle>Heads-up: this venue will be occupied</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Others will see this so they know when to leave and do not take the venue by mistake.
+          Others will see this so they know when to leave and do not take the venue by mistake. It applies to this week only.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">

@@ -13,6 +13,7 @@ from datetime import date, datetime, time
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -219,23 +220,43 @@ class TimetableSession(UUIDMixin, TimestampMixin, Base):
     source_text_raw: Mapped[str] = mapped_column(Text)
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    # Operational live status, set in real time by a class representative.
+    version: Mapped[TimetableVersion] = relationship(back_populates="sessions")
+
+
+class SessionOccurrence(UUIDMixin, TimestampMixin, Base):
+    """What happened to one session in one teaching week (set by a class rep).
+
+    The session row is the weekly template from the official PDF and is never changed
+    operationally. A row here exists only for a week where something differs: the class
+    was marked live/ended/not held, or it was moved (to another day of the same week,
+    another time, or another venue). Weeks without a row are exactly as published.
+    """
+
+    __tablename__ = "session_occurrence"
+    __table_args__ = (UniqueConstraint("session_id", "week_start", name="uq_occurrence_week"),)
+
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("timetable_session.id", ondelete="CASCADE"), index=True
+    )
+    week_start: Mapped[date] = mapped_column(Date, index=True)  # Monday, campus time
+
     live_status: Mapped[LiveStatus] = mapped_column(
         _enum(LiveStatus, "live_status"), default=LiveStatus.scheduled
     )
     live_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     live_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Latest operational change (reschedule/swap). Original values are preserved so the
-    # student view can show "changed from 08:00 to 10:00" (and from another day).
-    rescheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    reschedule_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    original_day_of_week: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    original_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    original_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
-    original_venue_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # A move within the same week; all null = held in its published slot.
+    moved_day_of_week: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    moved_start_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    moved_end_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    moved_venue_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+    moved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    version: Mapped[TimetableVersion] = relationship(back_populates="sessions")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("admin_user.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class SessionCohort(Base):
@@ -357,6 +378,8 @@ class VenueNotice(UUIDMixin, TimestampMixin, Base):
     cohort_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("cohort.id", ondelete="SET NULL"), nullable=True
     )
+    # Teaching week (Monday) the heads-up applies to; it lapses after that week.
+    week_start: Mapped[date] = mapped_column(Date, index=True)
     day_of_week: Mapped[int] = mapped_column(SmallInteger)
     start_time: Mapped[time] = mapped_column(Time)
     end_time: Mapped[time | None] = mapped_column(Time, nullable=True)

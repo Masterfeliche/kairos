@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time as _time
 from collections import defaultdict
-from datetime import time
+from datetime import date, time
 from typing import Literal
 from uuid import UUID
 
@@ -25,6 +25,7 @@ from app.api.deps import (
     get_current_cr,
     verify_csrf,
 )
+from app.core.campus import resolve_week
 from app.core.config import settings
 from app.core.db import atomic, get_session
 from app.core.security import generate_token
@@ -43,7 +44,7 @@ from app.services.cr_service import (
     set_live_status,
     swap_sessions,
 )
-from app.services.session_view import collect_details, session_to_dict
+from app.services.session_view import serialize_for_week, session_to_dict
 from app.services.version_service import require_live_version
 
 router = APIRouter(prefix="/api/v1/cr", tags=["cr"])
@@ -138,6 +139,7 @@ def me(user: AdminUser = Depends(get_current_cr), db: Session = Depends(get_sess
 @router.get("/timetable")
 def my_timetable(
     cohort_code: str | None = Query(None),
+    week: date | None = Query(None, description="Any date in the teaching week (default: this week)"),
     user: AdminUser = Depends(get_current_cr),
     db: Session = Depends(get_session),
 ):
@@ -156,19 +158,15 @@ def my_timetable(
         select(TimetableSession)
         .join(SessionCohort, SessionCohort.session_id == TimetableSession.id)
         .where(SessionCohort.cohort_id == cohort.id, TimetableSession.version_id == version.id)
-        .order_by(TimetableSession.day_of_week, TimetableSession.start_time)
     ).scalars().all()
-    cohort_map, lecturer_map, course_map = collect_details(db, sessions)
-    items = [
-        session_to_dict(s, course=course_map.get(s.course_id), cohorts=cohort_map.get(s.id, []),
-                        lecturers=lecturer_map.get(s.id, []), base_cohort_code=cohort.code)
-        for s in sessions
-    ]
+    wk = resolve_week(week)
+    items = serialize_for_week(db, sessions, wk, base_cohort_code=cohort.code)
     return {
         "cohort": _cohort_out(cohort),
         "my_cohorts": [_cohort_out(c) for c in cohorts],
         "version": {"id": str(version.id), "label": version.label,
                     "status": version.status.value, "is_preview": is_preview},
+        "week_start": wk.isoformat(),
         "sessions": items,
     }
 
@@ -176,20 +174,18 @@ def my_timetable(
 @router.get("/institute")
 def institute(
     day: int | None = Query(None, ge=1, le=7),
+    week: date | None = Query(None, description="Any date in the teaching week (default: this week)"),
     user: AdminUser = Depends(get_current_cr),
     db: Session = Depends(get_session),
 ):
     version, is_preview = _live_version(db)
-    sessions = institute_sessions(db, user, version=version, day=day)
-    cohort_map, lecturer_map, course_map = collect_details(db, sessions)
-    items = [
-        session_to_dict(s, course=course_map.get(s.course_id), cohorts=cohort_map.get(s.id, []),
-                        lecturers=lecturer_map.get(s.id, []))
-        for s in sessions
-    ]
+    wk = resolve_week(week)
+    sessions, occurrences = institute_sessions(db, user, version=version, week=wk, day=day)
+    items = serialize_for_week(db, sessions, wk, occurrences=occurrences)
     return {
         "version": {"id": str(version.id), "label": version.label,
                     "status": version.status.value, "is_preview": is_preview},
+        "week_start": wk.isoformat(),
         "sessions": items,
     }
 
@@ -199,6 +195,7 @@ def availability(
     day: int = Query(..., ge=1, le=7),
     start: str = Query(..., description="HH:MM"),
     end: str = Query(..., description="HH:MM"),
+    week: date | None = Query(None, description="Any date in the teaching week (default: this week)"),
     user: AdminUser = Depends(get_current_cr),
     db: Session = Depends(get_session),
 ):
@@ -210,15 +207,18 @@ def availability(
     if end_t <= start_t:
         raise HTTPException(status_code=422, detail="End must be after start.")
     version, _ = _live_version(db)
+    wk = resolve_week(week)
     return {"day": day, "start": start_t.isoformat(), "end": end_t.isoformat(),
+            "week_start": wk.isoformat(),
             "venues": room_availability(db, user, version=version, day=day,
-                                        start_time=start_t, end_time=end_t)}
+                                        start_time=start_t, end_time=end_t, week=wk)}
 
 
 # --- venue notices --------------------------------------------------------
 
 class VenueNoticeIn(BaseModel):
     venue: str
+    week: date | None = None
     day_of_week: int
     start_time: str
     end_time: str | None = None
@@ -228,10 +228,11 @@ class VenueNoticeIn(BaseModel):
 @router.get("/venue-notices")
 def get_venue_notices(
     day: int | None = Query(None, ge=1, le=7),
+    week: date | None = Query(None, description="Any date in the teaching week (default: this week)"),
     user: AdminUser = Depends(get_current_cr),
     db: Session = Depends(get_session),
 ):
-    return {"notices": list_venue_notices(db, day=day)}
+    return {"notices": list_venue_notices(db, day=day, week=week)}
 
 
 @router.post("/venue-notices")
@@ -252,7 +253,7 @@ def post_venue_notice(
     with atomic(db):
         try:
             notice = create_venue_notice(db, user=user, venue=body.venue, day_of_week=body.day_of_week,
-                                         start_time=start_t, end_time=end_t, note=body.note,
+                                         start_time=start_t, end_time=end_t, note=body.note, week=body.week,
                                          ip=client_ip(request))
         except CrError as exc:
             raise _cr_error(exc)
@@ -281,6 +282,7 @@ def delete_venue_notice(
 
 class LiveIn(BaseModel):
     status: Literal["live", "ended", "not_held", "scheduled"]
+    week: date | None = None  # any date in the teaching week; default this week
 
 
 class RescheduleIn(BaseModel):
@@ -289,11 +291,22 @@ class RescheduleIn(BaseModel):
     day_of_week: int | None = None
     venue: str | None = None
     reason: str | None = None
+    week: date | None = None
 
 
 class SwapIn(BaseModel):
     with_session_id: UUID
     reason: str | None = None
+    week: date | None = None
+
+
+def _occurrence_out(row: TimetableSession, occ) -> dict:
+    """The week's view of one session, in the same shape as the timetable endpoints."""
+    d = session_to_dict(row, occurrence=occ)
+    keys = ("id", "day_of_week", "start_time", "end_time", "venue", "live_status",
+            "live_started_at", "live_ended_at", "rescheduled", "reschedule_reason",
+            "original_day_of_week", "original_start_time", "original_end_time", "original_venue")
+    return {k: d[k] for k in keys}
 
 
 def _cr_error(exc: CrError) -> HTTPException:
@@ -313,13 +326,12 @@ def set_live(
 ):
     with atomic(db):
         try:
-            row = set_live_status(db, user=user, session_id=session_id,
-                                  status=LiveStatus(body.status), ip=client_ip(request))
+            row, occ = set_live_status(db, user=user, session_id=session_id,
+                                       status=LiveStatus(body.status), week=body.week,
+                                       ip=client_ip(request))
         except CrError as exc:
             raise _cr_error(exc)
-    return {"id": str(row.id), "live_status": row.live_status.value,
-            "live_started_at": row.live_started_at.isoformat() if row.live_started_at else None,
-            "live_ended_at": row.live_ended_at.isoformat() if row.live_ended_at else None}
+    return {**_occurrence_out(row, occ), "week_start": resolve_week(body.week).isoformat()}
 
 
 @router.post("/sessions/{session_id}/reschedule")
@@ -340,19 +352,14 @@ def reschedule(
         raise HTTPException(status_code=422, detail="day_of_week must be 1-7.")
     with atomic(db):
         try:
-            row = reschedule_session(db, user=user, session_id=session_id, start_time=start_t,
-                                     end_time=end_t, day_of_week=body.day_of_week,
-                                     venue=body.venue, reason=body.reason,
-                                     ip=client_ip(request))
+            row, occ = reschedule_session(db, user=user, session_id=session_id,
+                                          start_time=start_t, end_time=end_t,
+                                          day_of_week=body.day_of_week, venue=body.venue,
+                                          reason=body.reason, week=body.week,
+                                          ip=client_ip(request))
         except CrError as exc:
             raise _cr_error(exc)
-    return {"id": str(row.id), "day_of_week": row.day_of_week,
-            "start_time": row.start_time.isoformat(),
-            "end_time": row.end_time.isoformat(), "venue": row.venue_raw,
-            "rescheduled": row.rescheduled_at is not None,
-            "original_day_of_week": row.original_day_of_week,
-            "original_start_time": row.original_start_time.isoformat() if row.original_start_time else None,
-            "original_end_time": row.original_end_time.isoformat() if row.original_end_time else None}
+    return {**_occurrence_out(row, occ), "week_start": resolve_week(body.week).isoformat()}
 
 
 @router.post("/sessions/{session_id}/swap")
@@ -366,18 +373,10 @@ def swap(
 ):
     with atomic(db):
         try:
-            a, b = swap_sessions(db, user=user, session_id=session_id,
-                                 with_session_id=body.with_session_id, reason=body.reason,
-                                 ip=client_ip(request))
+            pairs = swap_sessions(db, user=user, session_id=session_id,
+                                  with_session_id=body.with_session_id, reason=body.reason,
+                                  week=body.week, ip=client_ip(request))
         except CrError as exc:
             raise _cr_error(exc)
-    return {"sessions": [
-        {"id": str(a.id), "day_of_week": a.day_of_week, "start_time": a.start_time.isoformat(),
-         "end_time": a.end_time.isoformat(), "venue": a.venue_raw,
-         "original_day_of_week": a.original_day_of_week,
-         "original_start_time": a.original_start_time.isoformat() if a.original_start_time else None},
-        {"id": str(b.id), "day_of_week": b.day_of_week, "start_time": b.start_time.isoformat(),
-         "end_time": b.end_time.isoformat(), "venue": b.venue_raw,
-         "original_day_of_week": b.original_day_of_week,
-         "original_start_time": b.original_start_time.isoformat() if b.original_start_time else None},
-    ]}
+    return {"week_start": resolve_week(body.week).isoformat(),
+            "sessions": [_occurrence_out(row, occ) for row, occ in pairs]}

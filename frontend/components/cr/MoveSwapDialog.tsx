@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { DAYS, hm, type PublicSession } from "@/lib/student";
 
@@ -69,6 +70,7 @@ export default function MoveSwapDialog({
         });
       }
       setOpen(false);
+      toast.success(mode === "move" ? `${session.course_name} moved for this week` : "Classes swapped for this week");
       onDone();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "Failed");
@@ -89,6 +91,10 @@ export default function MoveSwapDialog({
         <p className="text-sm text-muted-foreground">
           {session.course_name} · {DAYS[session.day_of_week]} {hm(session.start_time)}–{hm(session.end_time)}
           {session.venue ? ` · ${session.venue}` : ""}
+        </p>
+        <p className="rounded-lg bg-secondary px-3 py-2 text-xs text-secondary-foreground">
+          This change applies to <strong>this week only</strong>. Next week the class is back in its
+          published slot.
         </p>
 
         <div className="flex gap-2">

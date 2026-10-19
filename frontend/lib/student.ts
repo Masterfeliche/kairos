@@ -40,6 +40,8 @@ export type PublicSession = {
 export type TimetableResponse = {
   cohort: { id: string; code: string; intake_year: number | null; section: string | null };
   version: PublicVersion;
+  /** Monday of the teaching week these sessions describe (campus time). */
+  week_start: string;
   sessions: PublicSession[];
 };
 
@@ -47,6 +49,7 @@ export type VenueNotice = {
   id: string;
   venue: string;
   cohort_code: string | null;
+  week_start: string;
   day_of_week: number;
   start_time: string;
   end_time: string | null;

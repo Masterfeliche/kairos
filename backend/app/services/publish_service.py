@@ -21,6 +21,7 @@ from app.models import (
     VersionStatus,
 )
 from app.models import IssueSeverity
+from app.services.occurrence_service import carry_forward
 
 
 class PublishError(Exception):
@@ -70,6 +71,9 @@ def publish(session: Session, version_id) -> PublicationRecord:
         version.status = VersionStatus.published
         version.published_at = datetime.now(timezone.utc)
 
+        # Class-rep changes for this and future weeks follow the class to the new version.
+        carry_forward(session, previous_id, version.id)
+
         record = PublicationRecord(
             version_id=version.id,
             action=PublicationAction.publish,
@@ -104,6 +108,8 @@ def rollback(session: Session, period_id, to_version_id) -> PublicationRecord:
         target.is_active = True
         target.status = VersionStatus.published
         target.published_at = datetime.now(timezone.utc)
+
+        carry_forward(session, previous_id, target.id)
 
         record = PublicationRecord(
             version_id=target.id,

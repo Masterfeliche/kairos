@@ -52,6 +52,8 @@ export type CrTimetable = {
   cohort: CrCohort;
   my_cohorts: CrCohort[];
   version: CrVersion;
+  /** Monday of the teaching week these sessions describe (campus time). */
+  week_start: string;
   sessions: CrSession[];
 };
 

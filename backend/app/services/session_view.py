@@ -2,15 +2,33 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Cohort, Course, SessionCohort, SessionLecturer, TimetableSession
+from app.models import (
+    Cohort,
+    Course,
+    SessionCohort,
+    SessionLecturer,
+    SessionOccurrence,
+    TimetableSession,
+)
+from app.services.occurrence_service import effective_slot, is_moved, live_status
 
 
 def _time_str(t) -> str | None:
     return t.isoformat() if t is not None else None
+
+
+def _utc_str(dt: datetime | None) -> str | None:
+    """ISO timestamp with an explicit UTC offset (SQLite hands back naive UTC values)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 
 def collect_details(db: Session, sessions: list[TimetableSession]):
@@ -47,31 +65,64 @@ def session_to_dict(
     cohorts: list[str] | None = None,
     lecturers: list[str] | None = None,
     base_cohort_code: str | None = None,
+    occurrence: SessionOccurrence | None = None,
 ) -> dict:
+    """Serialize a session as it happens in one week (template + that week's override)."""
     cohorts = cohorts or []
     shared_with = sorted(c for c in cohorts if c != base_cohort_code) if base_cohort_code else sorted(cohorts)
+    slot = effective_slot(s, occurrence)
+    moved = is_moved(occurrence)
+    occ = occurrence
     return {
         "id": str(s.id),
-        "day_of_week": s.day_of_week,
-        "start_time": _time_str(s.start_time),
-        "end_time": _time_str(s.end_time),
+        "day_of_week": slot.day_of_week,
+        "start_time": _time_str(slot.start_time),
+        "end_time": _time_str(slot.end_time),
         "course_code": s.course_code_raw,
         "course_name": s.course_name_raw,
         "department": course.department if course else None,
         "lecturers": sorted(lecturers or []),
-        "venue": s.venue_raw,
+        "venue": slot.venue,
         "session_type": s.session_type.value if s.session_type else None,
         "shared_with": shared_with,
         "cohorts": sorted(cohorts),
         "source_page": s.source_page,
-        "live_status": s.live_status.value,
-        "live_started_at": s.live_started_at.isoformat() if s.live_started_at else None,
-        "live_ended_at": s.live_ended_at.isoformat() if s.live_ended_at else None,
-        "rescheduled": s.rescheduled_at is not None,
-        "reschedule_reason": s.reschedule_reason,
-        "rescheduled_at": s.rescheduled_at.isoformat() if s.rescheduled_at else None,
-        "original_day_of_week": s.original_day_of_week,
-        "original_start_time": _time_str(s.original_start_time),
-        "original_end_time": _time_str(s.original_end_time),
-        "original_venue": s.original_venue_raw,
+        "live_status": live_status(occ).value,
+        "live_started_at": _utc_str(occ.live_started_at) if occ else None,
+        "live_ended_at": _utc_str(occ.live_ended_at) if occ else None,
+        "rescheduled": moved,
+        "reschedule_reason": occ.reason if moved else None,
+        "rescheduled_at": _utc_str(occ.moved_at) if moved else None,
+        "original_day_of_week": s.day_of_week if moved else None,
+        "original_start_time": _time_str(s.start_time) if moved else None,
+        "original_end_time": _time_str(s.end_time) if moved else None,
+        "original_venue": s.venue_raw if moved else None,
     }
+
+
+def serialize_for_week(
+    db: Session,
+    rows: list[TimetableSession],
+    week,
+    *,
+    base_cohort_code: str | None = None,
+    occurrences: dict | None = None,
+) -> list[dict]:
+    """Serialize sessions as they happen in ``week`` (Monday), ordered by effective slot."""
+    from app.services.occurrence_service import load_occurrences, sorted_by_effective
+
+    if occurrences is None:
+        occurrences = load_occurrences(db, [r.id for r in rows], week)
+    rows = sorted_by_effective(list(rows), occurrences)
+    cohort_map, lecturer_map, course_map = collect_details(db, rows)
+    return [
+        session_to_dict(
+            r,
+            course=course_map.get(r.course_id),
+            cohorts=cohort_map.get(r.id, []),
+            lecturers=lecturer_map.get(r.id, []),
+            base_cohort_code=base_cohort_code,
+            occurrence=occurrences.get(r.id),
+        )
+        for r in rows
+    ]

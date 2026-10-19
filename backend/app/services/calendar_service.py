@@ -29,8 +29,16 @@ def _clean_text(s: str | None) -> str:
 
 
 def _monday_of_current_week(ref_date: date | None = None) -> date:
-    d = ref_date or date.today()
-    return d - timedelta(days=d.weekday())
+    if ref_date is None:
+        from app.core.campus import current_week_start
+
+        return current_week_start()
+    return ref_date - timedelta(days=ref_date.weekday())
+
+
+def _local(d: date, hhmm: str) -> str:
+    h, m = [int(p) for p in hhmm.split(":")[:2]]
+    return f"{d.strftime('%Y%m%d')}T{h:02d}{m:02d}00"
 
 
 def generate_cohort_ics(
@@ -40,8 +48,16 @@ def generate_cohort_ics(
     version_label: str = "Semester I",
     weeks_count: int = 16,
     start_monday: date | None = None,
+    overrides: dict[str, list[dict]] | None = None,
 ) -> str:
-    """Generate an RFC 5545 iCalendar string for a cohort timetable."""
+    """Generate an RFC 5545 iCalendar string for a cohort timetable.
+
+    Each session is a weekly recurring event in its published slot. ``overrides`` maps a
+    session id to that session's class-rep changes for specific weeks (``week_start``,
+    ``not_held``, ``moved`` and the effective slot); each becomes an override instance
+    (``RECURRENCE-ID``) so calendars show the cancellation or move for that week only.
+    """
+    overrides = overrides or {}
     monday = start_monday or _monday_of_current_week()
     now_utc = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -120,6 +136,34 @@ def generate_cohort_ics(
             "STATUS:CONFIRMED",
             "END:VEVENT",
         ])
+
+        for ov in overrides.get(str(s.get("id")), []):
+            if not (ov.get("not_held") or ov.get("moved")):
+                continue
+            occ_date = ov["week_start"] + timedelta(days=day_of_week - 1)
+            recurrence_id = _local(occ_date, start_time_str)
+            if ov.get("not_held"):
+                ov_start, ov_end, ov_venue = recurrence_id, _local(occ_date, end_time_str), venue
+                ov_summary, ov_status = f"Not held: {summary}", "CANCELLED"
+            else:
+                moved_date = ov["week_start"] + timedelta(days=ov["day_of_week"] - 1)
+                ov_start = _local(moved_date, ov["start_time"])
+                ov_end = _local(moved_date, ov["end_time"])
+                ov_venue = ov.get("venue") or venue
+                ov_summary, ov_status = f"Moved: {summary}", "CONFIRMED"
+            lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{now_utc}",
+                f"RECURRENCE-ID;TZID=Africa/Dar_es_Salaam:{recurrence_id}",
+                f"DTSTART;TZID=Africa/Dar_es_Salaam:{ov_start}",
+                f"DTEND;TZID=Africa/Dar_es_Salaam:{ov_end}",
+                f"SUMMARY:{_clean_text(ov_summary)}",
+                f"LOCATION:{_clean_text(ov_venue)}",
+                f"DESCRIPTION:{description}",
+                f"STATUS:{ov_status}",
+                "END:VEVENT",
+            ])
 
     lines.append("END:VCALENDAR")
     return "\r\n".join(lines) + "\r\n"
