@@ -13,16 +13,27 @@ export default function VenueNoticeDialog({
   defaultStart = "",
   defaultEnd = "",
   triggerLabel = "Venue soon",
+  trigger,
   onDone,
+  open: openProp,
+  onOpenChange,
 }: {
   defaultVenue?: string;
   defaultDay?: number;
   defaultStart?: string;
   defaultEnd?: string;
   triggerLabel?: string;
+  /** Custom trigger element (replaces the default outline button). */
+  trigger?: React.ReactNode;
   onDone?: () => void;
+  /** Controlled mode (opened from a menu): no trigger button is rendered. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const setOpen = (o: boolean) => (controlled ? onOpenChange?.(o) : setOpenState(o));
   const [venue, setVenue] = useState(defaultVenue);
   const [start, setStart] = useState(defaultStart.slice(0, 5));
   const [end, setEnd] = useState(defaultEnd.slice(0, 5));
@@ -58,9 +69,11 @@ export default function VenueNoticeDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">{triggerLabel}</Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          {trigger ?? <Button variant="outline" size="sm">{triggerLabel}</Button>}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Heads-up: this venue will be occupied</DialogTitle>
@@ -75,11 +88,11 @@ export default function VenueNoticeDialog({
           </div>
           <div className="space-y-1.5">
             <Label>From (they should leave by)</Label>
-            <Input value={start} onChange={(e) => setStart(e.target.value)} placeholder="HH:MM" />
+            <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Until (optional)</Label>
-            <Input value={end} onChange={(e) => setEnd(e.target.value)} placeholder="HH:MM" />
+            <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Note (optional)</Label>

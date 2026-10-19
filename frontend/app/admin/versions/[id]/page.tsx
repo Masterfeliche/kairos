@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import {
   api,
   ApiError,
@@ -42,6 +43,7 @@ export default function ReviewPage() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<SessionRow | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [confirm, setConfirm] = useState<null | "publish" | "rollback">(null);
 
   const loadDetail = useCallback(() => {
     api<VersionDetail>(`/api/v1/admin/versions/${id}`).then(setDetail).catch(() => {});
@@ -107,14 +109,37 @@ export default function ReviewPage() {
           <Link className="btn-ghost" href={`/admin/versions/${id}/diff`}>View diff</Link>
           {me?.role === "owner" && (
             <>
-              <button className="btn-danger" onClick={rollback}>Rollback to this</button>
-              <button className="btn-primary" onClick={publish} disabled={detail?.status === "published"}>
+              <button className="btn-danger" onClick={() => setConfirm("rollback")}>Rollback to this</button>
+              <button
+                className="btn-primary"
+                onClick={() => setConfirm("publish")}
+                disabled={detail?.status === "published" || (detail?.open_errors ?? 0) > 0}
+                title={(detail?.open_errors ?? 0) > 0 ? "Resolve the blocking errors first" : undefined}
+              >
                 Publish
               </button>
             </>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirm === "publish"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Publish ${detail?.label ?? "this version"}?`}
+        description="Every student and class rep will see this version immediately."
+        confirmLabel="Publish now"
+        onConfirm={publish}
+      />
+      <ConfirmDialog
+        open={confirm === "rollback"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Roll back to ${detail?.label ?? "this version"}?`}
+        description="Students will immediately see this version instead of the current live one."
+        confirmLabel="Roll back"
+        destructive
+        onConfirm={rollback}
+      />
 
       {notice && (
         <p className={`rounded px-4 py-3 text-sm ${notice.kind === "ok" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>

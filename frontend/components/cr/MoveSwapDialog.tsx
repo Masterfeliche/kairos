@@ -14,12 +14,20 @@ export default function MoveSwapDialog({
   session,
   siblings,
   onDone,
+  open: openProp,
+  onOpenChange,
 }: {
   session: PublicSession;
   siblings: PublicSession[];
   onDone: () => void;
+  /** Controlled mode (opened from a menu): no trigger button is rendered. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const setOpen = (o: boolean) => (controlled ? onOpenChange?.(o) : setOpenState(o));
   const [mode, setMode] = useState<"move" | "swap">("move");
   const [day, setDay] = useState(String(session.day_of_week));
   const [start, setStart] = useState(session.start_time.slice(0, 5));
@@ -71,9 +79,11 @@ export default function MoveSwapDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">Move / swap</Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">Move / swap</Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader><DialogTitle>Move or swap this class</DialogTitle></DialogHeader>
         <p className="text-sm text-muted-foreground">
@@ -109,11 +119,11 @@ export default function MoveSwapDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ms-start">Start</Label>
-              <Input id="ms-start" value={start} onChange={(e) => setStart(e.target.value)} placeholder="HH:MM" />
+              <Input id="ms-start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ms-end">End</Label>
-              <Input id="ms-end" value={end} onChange={(e) => setEnd(e.target.value)} placeholder="HH:MM" />
+              <Input id="ms-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
         ) : (

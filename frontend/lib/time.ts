@@ -68,3 +68,13 @@ export function fmtClock(minutes: number): string {
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+/** "10:04" in campus time, from an ISO timestamp. */
+export function campusClockOf(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    timeZone: CAMPUS_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+}

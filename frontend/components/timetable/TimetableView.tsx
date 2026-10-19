@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import SessionCard, { type SessionTone } from "@/components/timetable/SessionCard";
 import { useCampusClock } from "@/components/timetable/useCampusClock";
+import { DayStrip, ViewSwitch } from "@/components/timetable/DayNav";
 import { fmtClock, fmtDuration, type CampusNow } from "@/lib/time";
 import {
   DAY_SHORT,
@@ -112,10 +113,7 @@ export default function TimetableView({
           >
             <Search className="size-5" aria-hidden />
           </button>
-          <nav aria-label="View" className="flex rounded-xl bg-secondary p-1 text-sm font-semibold">
-            <ViewTab href={link(basePath, `day=${day}`)} active={!week}>Day</ViewTab>
-            <ViewTab href={link(basePath, "view=week")} active={week}>Week</ViewTab>
-          </nav>
+          <ViewSwitch basePath={basePath} day={day} week={week} />
         </div>
       </div>
 
@@ -185,24 +183,6 @@ export default function TimetableView({
   );
 }
 
-function ViewTab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      aria-current={active ? "page" : undefined}
-      className={cn(
-        "flex h-9 items-center rounded-lg px-4 transition",
-        active
-          ? "bg-card text-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {children}
-    </Link>
-  );
-}
-
 /* ------------------------------------------------------------------ Day view */
 
 function toneFor(s: PublicSession, minutes: number | null): SessionTone {
@@ -246,39 +226,6 @@ function DayView({
 
       <p className="text-xs text-muted-foreground">Times are East Africa Time (EAT).</p>
     </div>
-  );
-}
-
-function DayStrip({ basePath, day, now }: { basePath: string; day: number; now: CampusNow }) {
-  return (
-    <nav aria-label="Choose day" className="grid grid-cols-5 gap-2">
-      {[1, 2, 3, 4, 5].map((d) => {
-        const selected = d === day;
-        const isToday = d === now.today;
-        return (
-          <Link
-            key={d}
-            prefetch={false}
-            href={link(basePath, `day=${d}`)}
-            aria-current={selected ? "date" : undefined}
-            aria-label={`${DAYS[d]} ${now.weekLabels[d]}${isToday ? ", today" : ""}`}
-            className={cn(
-              "flex h-16 flex-col items-center justify-center rounded-2xl border transition",
-              selected
-                ? "border-spotlight bg-spotlight text-spotlight-foreground"
-                : "border-border bg-card text-muted-foreground hover:border-primary/40",
-            )}
-          >
-            <span className={cn("text-xs font-medium", selected && "text-spotlight-muted", isToday && !selected && "font-semibold text-primary")}>
-              {isToday ? "Today" : DAY_SHORT[d]}
-            </span>
-            <span className={cn("font-mono text-lg font-semibold tabular-nums", selected ? "text-spotlight-foreground" : "text-foreground")}>
-              {now.weekDates[d]}
-            </span>
-          </Link>
-        );
-      })}
-    </nav>
   );
 }
 
