@@ -78,3 +78,17 @@ def test_publish_refused_when_errors_exist(session):
         publish(session, v1.id)
     session.expire_all()
     assert session.get(TimetableVersion, v1.id).is_active is False
+
+
+def test_publish_allowed_when_errors_are_resolved(session):
+    from datetime import datetime, timezone
+    period, v1, v2 = _seed(session)
+    issue = ValidationIssue(version_id=v1.id, code="MISSING_CODE",
+                            severity=IssueSeverity.error, message="x", page=1,
+                            resolved_at=datetime.now(timezone.utc))
+    session.add(issue)
+    session.commit()
+
+    publish(session, v1.id)
+    session.expire_all()
+    assert session.get(TimetableVersion, v1.id).is_active is True
