@@ -1,3 +1,0 @@
-# Deploy scripts run on Linux; keep them LF even when edited on Windows.
-*.sh     text eol=lf
-Shipfile text eol=lf

@@ -1,37 +1,22 @@
-# Generated extraction outputs (reproducible; do not commit)
-poc_sessions.json
-*.sessions.json
-data/fixtures/gold/*.generated.json
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
 
-# Local databases & runtime storage
-*.db
-*.sqlite
-*.sqlite3
-data/storage/
-backend/data/
+# Secrets
+.env
+.env.local
+.env.*.local
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Leftovers from the old monorepo layout (backend now lives in kairos-backend)
+/backend/
+/frontend/
 
 # OS / editor
 .DS_Store
 Thumbs.db
 
-# Node / Next.js
-node_modules/
-.next/
-.env.local
-next-env.d.ts
-*.tsbuildinfo
-
-
-# Deployment secrets
-.env
-deploy/postgres/.env
+# Local tool settings
+.claude/

@@ -1,9 +1,0 @@
-# deploy.tz build/run configuration (https://docs.deploy.tz/docs/shipfile.html).
-#
-# This one repository is deployed as TWO deploy.tz apps that share this Shipfile:
-#   APP_ROLE=api  -> FastAPI backend (Python stack)
-#   APP_ROLE=web  -> Next.js website (Node stack)
-# Set APP_ROLE (and the other variables in deploy/env/*.env.example) in each app's
-# Environment tab. See docs/17-deployment.md.
-script: sh deploy/setup.sh
-run: PORT=8000 sh deploy/start.sh
