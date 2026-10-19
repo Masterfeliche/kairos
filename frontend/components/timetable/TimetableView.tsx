@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import SessionCard from "@/components/timetable/SessionCard";
 import {
   DAY_SHORT,
@@ -47,26 +49,95 @@ export default function TimetableView({
   onMove,
   onSwap,
 }: TimetableViewProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredSessions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((s) => {
+      const name = (s.course_name || "").toLowerCase();
+      const code = (s.course_code || "").toLowerCase();
+      const venue = (s.venue || "").toLowerCase();
+      const dept = (s.department || "").toLowerCase();
+      const lecs = (s.lecturers || []).join(" ").toLowerCase();
+      return (
+        name.includes(q) ||
+        code.includes(q) ||
+        venue.includes(q) ||
+        dept.includes(q) ||
+        lecs.includes(q)
+      );
+    });
+  }, [sessions, searchQuery]);
+
   const week = view === "week";
   const byDay: Record<number, PublicSession[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
-  for (const s of sessions) {
+  for (const s of filteredSessions) {
     if (byDay[s.day_of_week]) byDay[s.day_of_week].push(s);
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <div className="inline-flex rounded-xl border border-border bg-card p-0.5 text-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" aria-hidden="true" />
+          <Input
+            type="text"
+            placeholder="Search course, code, lecturer, room..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 pr-8 bg-card text-sm"
+            aria-label="Filter timetable sessions"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="inline-flex self-end sm:self-auto rounded-xl border border-border bg-card p-0.5 text-sm">
           <Tab href={link(basePath, `day=${day}`)} active={!week}>Day</Tab>
           <Tab href={link(basePath, `view=week`)} active={week}>Week</Tab>
         </div>
       </div>
 
-      {week ? (
+      {searchQuery.trim() && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+          <span>
+            Showing <strong className="text-foreground">{filteredSessions.length}</strong> of {sessions.length} sessions matching &quot;{searchQuery}&quot;
+          </span>
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="text-primary hover:underline font-medium"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
+
+      {filteredSessions.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card/40 p-8 text-center">
+          <Search className="mx-auto size-7 text-muted-foreground/60 mb-2" aria-hidden="true" />
+          <p className="font-semibold text-foreground">No matching classes found</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+            No sessions match &quot;{searchQuery}&quot;. Try searching by course code (e.g. COU 07101), room, or lecturer name.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => setSearchQuery("")}>
+            Clear Search
+          </Button>
+        </div>
+      ) : week ? (
         <WeekView
           basePath={basePath}
           byDay={byDay}
-          allSessions={sessions}
+          allSessions={filteredSessions}
           today={today}
           nowMinutes={nowMinutes}
           sourceFilename={sourceFilename}

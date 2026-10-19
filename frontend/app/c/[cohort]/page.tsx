@@ -5,6 +5,7 @@ import MobileTabBar from "@/components/student/MobileTabBar";
 import VersionBanner from "@/components/student/VersionBanner";
 import VenueNoticeBanner from "@/components/student/VenueNoticeBanner";
 import TimetableView from "@/components/timetable/TimetableView";
+import ExportCalendarButton from "@/components/timetable/ExportCalendarButton";
 import { serverApi } from "@/lib/server-api";
 import { todayWeekday, type TimetableResponse, type VenueNotice } from "@/lib/student";
 
@@ -44,9 +45,12 @@ export default async function CohortPage({
     <div className="flex min-h-screen flex-col pb-16 md:pb-0">
       <SiteHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 space-y-5 px-4 py-6">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Class</p>
-          <h1 className="text-2xl font-bold text-foreground md:text-3xl">{data.cohort.code}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Class</p>
+            <h1 className="text-2xl font-bold text-foreground md:text-3xl">{data.cohort.code}</h1>
+          </div>
+          <ExportCalendarButton cohortCode={code} />
         </div>
 
         <VersionBanner version={data.version} />
