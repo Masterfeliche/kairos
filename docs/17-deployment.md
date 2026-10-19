@@ -149,6 +149,15 @@ data (see `backend/migrations/versions`).
   `APP_ROLE` or a required variable is missing.
 - **Ports.** Both apps listen on `0.0.0.0:8000`. The `Shipfile` declares `PORT=8000`,
   which deploy.tz detects.
+- **Root manifests.** The Node and Python stacks look for `package.json` and
+  `requirements.txt` at the repository root, not in `frontend/` or `backend/`. Both
+  exist at the root and only hand off to those folders:
+  - `package.json` has no dependencies; `npm run build` and `npm start` call the
+    deploy scripts.
+  - `requirements.txt` installs `./backend`.
+
+  If a build fails with "package.json missing" or "requirements.txt missing", the app
+  is building an old commit. Redeploy from the latest `master`.
 
 ## Local equivalent (for testing the production setup)
 

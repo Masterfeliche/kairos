@@ -1,0 +1,4 @@
+# Root manifest for hosts that run `pip install -r requirements.txt` at the repo root
+# (deploy.tz Python stack). Installs the backend package and its dependencies, which are
+# declared in backend/pyproject.toml.
+./backend

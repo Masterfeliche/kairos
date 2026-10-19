@@ -1,0 +1,13 @@
+{
+  "name": "kairos",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Kairos - DIT teaching timetable. Root manifest for hosts that expect package.json at the repo root (deploy.tz Node stack); the website itself lives in frontend/.",
+  "scripts": {
+    "build": "sh deploy/setup.sh",
+    "start": "sh deploy/start.sh"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}
