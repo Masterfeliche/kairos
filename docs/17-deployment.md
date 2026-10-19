@@ -5,8 +5,8 @@
             │ HTTPS
             ▼
  ┌──────────────────────────────┐      server-side + /api proxy      ┌──────────────────────────────┐
- │ deploy.tz app "dit-timetable" │ ─────────────────────────────────▶ │ deploy.tz app                 │
- │ APP_ROLE=web · Node stack     │                                    │ "dit-timetable-api"           │
+ │ deploy.tz app "kairos"       │ ─────────────────────────────────▶ │ deploy.tz app                 │
+ │ APP_ROLE=web · Node stack     │                                    │ "kairos-api"                  │
  │ Next.js (next start :8000)    │                                    │ APP_ROLE=api · Python stack   │
  └──────────────────────────────┘                                    │ FastAPI (uvicorn :8000)       │
                                                                       └──────────────┬───────────────┘
@@ -18,10 +18,27 @@
                                                                       └──────────────────────────────┘
 ```
 
-deploy.tz builds apps straight from a GitHub repository using a root-level `Shipfile`
-(`script` = build steps, `run` = start command). This repository is deployed as **two**
-apps that share the same `Shipfile`; the `APP_ROLE` variable picks what each one builds
-and runs (`deploy/setup.sh`, `deploy/start.sh`).
+deploy.tz builds each app from the GitHub repository into a Docker image. On the
+**Node stack** it generates the build itself:
+
+```
+COPY package.json, package-lock.json → npm install → COPY . . → npm run build → npm start
+```
+
+The `Shipfile` is used on the other stacks. This repository is deployed as **two** apps,
+and every entry point leads to the same two scripts, `deploy/setup.sh` and
+`deploy/start.sh`:
+
+- the root `package.json` (`npm run build` / `npm start`)
+- the root `requirements.txt`
+- the `Shipfile`
+
+Each app's role comes from `APP_ROLE`. When that is not set, for example during the
+Docker build, the role is inferred: a run started by npm is the website, and an image
+with Python and no Node is the API.
+
+The scripts never need runtime-only settings while the image is being built.
+`TT_DATABASE_URL` and the backend URL are read when the app starts.
 
 The browser only talks to the website. The website proxies `/api/*` to the API app, so
 login cookies stay first-party.
@@ -62,7 +79,7 @@ On deploy.tz, choose **Deploy New App**:
 
 | Field | Value |
 |---|---|
-| Name | `dit-timetable-api` (becomes `dit-timetable-api.deploy.tz`) |
+| Name | `kairos-api` (becomes `kairos-api.deploy.tz`) |
 | Stack | Python (3.11 or newer) |
 | Repository | this repo |
 | Environment | see `deploy/env/api.env.example` |
@@ -72,33 +89,35 @@ Required variables:
 ```
 APP_ROLE=api
 TT_DATABASE_URL=postgresql://timetable:<password>@<postgres-host>:5432/timetable
-TT_FRONTEND_ORIGIN=https://dit-timetable.deploy.tz
+TT_FRONTEND_ORIGIN=https://kairos.deploy.tz
 TT_SECURE_COOKIES=true
 TT_ALLOW_DRAFT_PREVIEW=false
 ```
 
-The build step runs `pip install .` and **`alembic upgrade head`**. On a fresh database
-this creates the schema; on later deploys it applies any new migrations before the new
-code starts. Check `https://dit-timetable-api.deploy.tz/healthz` returns `{"status":"ok"}`.
+The image installs `requirements.txt` at build time. On every start, `deploy/start.sh`
+runs **`alembic upgrade head`** before uvicorn. On a fresh database this creates the
+schema; after an update it applies new migrations before the new code serves requests. Check `https://kairos-api.deploy.tz/healthz` returns `{"status":"ok"}`.
 
 ## 4. Create the website app
 
 | Field | Value |
 |---|---|
-| Name | `dit-timetable` (the public URL students use) |
+| Name | `kairos` (the public URL students use, `kairos.deploy.tz`) |
 | Stack | Node (18.18 or newer) |
 | Repository | the same repo |
 | Environment | see `deploy/env/web.env.example` |
 
 ```
 APP_ROLE=web
-TT_BACKEND_ORIGIN=https://dit-timetable-api.deploy.tz
-TT_API_BASE=https://dit-timetable-api.deploy.tz
+TT_BACKEND_ORIGIN=https://kairos-api.deploy.tz
+TT_API_BASE=https://kairos-api.deploy.tz
 NODE_ENV=production
 ```
 
-`TT_BACKEND_ORIGIN` is read when the site is **built**. If the API URL changes, update
-it and redeploy the website.
+`APP_ROLE=web` is optional here, because npm marks the build as the website. The
+backend URL is read when each request comes in: `/api/*` is forwarded by
+`frontend/app/api/[...path]/route.ts`. If the API URL changes, update the variable and
+restart the website. No rebuild is needed.
 
 ## 5. Load the data
 
@@ -158,6 +177,9 @@ data (see `backend/migrations/versions`).
 
   If a build fails with "package.json missing" or "requirements.txt missing", the app
   is building an old commit. Redeploy from the latest `master`.
+- **Build exit code 127** ("command not found") meant an older `setup.sh` was looking
+  for Python inside the Node image. Current scripts print `kairos setup: APP_ROLE=...`
+  first. If a build log doesn't show that line, it is not running the current code.
 
 ## Local equivalent (for testing the production setup)
 
