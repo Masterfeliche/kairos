@@ -15,3 +15,4 @@ def test_public_endpoints_empty():
     client = TestClient(app)
     assert client.get("/api/v1/cohorts").json() == []
     assert client.get("/api/v1/versions/active").status_code == 404
+    assert client.get("/api/v1/timetable/export.ics?cohort_code=UNKNOWN").status_code == 404

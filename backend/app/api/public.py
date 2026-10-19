@@ -7,7 +7,7 @@ production.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from app.models import (
     TimetableSession,
     TimetableVersion,
 )
+from app.services.calendar_service import generate_cohort_ics
 from app.services.session_view import collect_details, session_to_dict
 from app.services.version_service import preview_allowed, resolve_live_version
 
@@ -156,3 +157,62 @@ def timetable(
         "version": _version_out(db, version, preview=is_preview),
         "sessions": items,
     }
+
+
+@router.get("/timetable/export.ics")
+def export_timetable_ics(
+    cohort_code: str,
+    preview: bool = Query(False),
+    db: Session = Depends(get_session),
+):
+    """Export cohort timetable as an RFC 5545 iCalendar (.ics) file."""
+    _preview_requested(preview)
+    cohort = db.execute(
+        select(Cohort).where(Cohort.code == cohort_code.upper())
+    ).scalar_one_or_none()
+    if cohort is None:
+        raise HTTPException(status_code=404, detail="Unknown cohort.")
+
+    resolved = resolve_live_version(db, preview=preview)
+    if resolved is None:
+        raise HTTPException(status_code=404, detail="No published version.")
+    version, is_preview = resolved
+
+    sessions = db.execute(
+        select(TimetableSession)
+        .join(SessionCohort, SessionCohort.session_id == TimetableSession.id)
+        .where(
+            SessionCohort.cohort_id == cohort.id,
+            TimetableSession.version_id == version.id,
+        )
+        .order_by(TimetableSession.day_of_week, TimetableSession.start_time)
+    ).scalars().all()
+
+    cohort_map, lecturer_map, course_map = collect_details(db, sessions)
+    items = [
+        session_to_dict(
+            s,
+            course=course_map.get(s.course_id),
+            cohorts=cohort_map.get(s.id, []),
+            lecturers=lecturer_map.get(s.id, []),
+            base_cohort_code=cohort.code,
+        )
+        for s in sessions
+    ]
+
+    ics_content = generate_cohort_ics(
+        cohort.code,
+        items,
+        version_label=version.label,
+    )
+
+    filename = f"{cohort.code}_timetable.ics"
+    return Response(
+        content=ics_content,
+        media_type="text/calendar; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "public, max-age=3600",
+        },
+    )
+
