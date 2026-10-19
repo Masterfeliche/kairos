@@ -13,9 +13,11 @@ from app.models import Base
 def create_app() -> FastAPI:
     app = FastAPI(title="DIT Smart Timetable API", version="0.4.0")
 
-    # Phase 2 convenience: create tables if migrations have not been run.
-    # Production uses Alembic (see backend/migrations).
-    Base.metadata.create_all(engine)
+    # Local SQLite convenience: create tables if migrations have not been run.
+    # Postgres (production) is managed only by Alembic — creating tables here would
+    # make `alembic upgrade head` fail on a fresh database.
+    if settings.is_sqlite:
+        Base.metadata.create_all(engine)
 
     # The Next.js dev server also proxies /api to this app (same-origin cookies);
     # CORS is a fallback for direct cross-origin calls.

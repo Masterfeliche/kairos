@@ -31,3 +31,7 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 
+
+# Deployment secrets
+.env
+deploy/postgres/.env

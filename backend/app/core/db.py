@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
 
 connect_args = {"check_same_thread": False} if settings.is_sqlite else {}
-engine = create_engine(settings.database_url, connect_args=connect_args, future=True)
+# pool_pre_ping: a remote Postgres (e.g. a Docker container on another host) may drop
+# idle connections; test them before use instead of failing the request.
+engine = create_engine(
+    settings.database_url,
+    connect_args=connect_args,
+    future=True,
+    pool_pre_ping=not settings.is_sqlite,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

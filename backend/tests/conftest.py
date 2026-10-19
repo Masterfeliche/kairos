@@ -9,7 +9,11 @@ _TMP = Path(tempfile.gettempdir())
 _DB = _TMP / f"tt_test_{os.getpid()}.db"
 _STORE = _TMP / f"tt_store_{os.getpid()}"
 
-os.environ["TT_DATABASE_URL"] = f"sqlite+pysqlite:///{_DB.as_posix()}"
+# Set TT_TEST_DATABASE_URL to run the suite against Postgres (it drops and recreates
+# every table, so point it at a throwaway database).
+os.environ["TT_DATABASE_URL"] = os.environ.get(
+    "TT_TEST_DATABASE_URL", f"sqlite+pysqlite:///{_DB.as_posix()}"
+)
 os.environ["TT_STORAGE_DIR"] = str(_STORE)
 
 import pytest  # noqa: E402

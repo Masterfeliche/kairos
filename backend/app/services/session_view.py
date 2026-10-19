@@ -23,12 +23,15 @@ def _time_str(t) -> str | None:
 
 
 def _utc_str(dt: datetime | None) -> str | None:
-    """ISO timestamp with an explicit UTC offset (SQLite hands back naive UTC values)."""
+    """ISO timestamp in UTC with an explicit offset.
+
+    SQLite hands back naive UTC values; Postgres returns them in the server's time zone.
+    """
     if dt is None:
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.isoformat()
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 def collect_details(db: Session, sessions: list[TimetableSession]):

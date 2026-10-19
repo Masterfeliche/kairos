@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,8 +11,17 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="TT_", env_file=".env", extra="ignore")
 
     # Local dev defaults to SQLite so the pipeline runs with zero setup.
-    # Production sets TT_DATABASE_URL to a Postgres DSN.
+    # Production sets TT_DATABASE_URL to a Postgres DSN; plain ``postgres://`` /
+    # ``postgresql://`` URLs (as most hosts print them) are mapped to the psycopg driver.
     database_url: str = "sqlite+pysqlite:///./smarttimetable.db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _psycopg_driver(cls, url: str) -> str:
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url[len(prefix):]
+        return url
 
     # Where immutable source PDFs and rendered page images live.
     storage_dir: Path = Path("./data/storage")

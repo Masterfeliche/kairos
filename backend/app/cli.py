@@ -7,6 +7,7 @@ Usage:
     python -m app.cli publish <version_id>
     python -m app.cli create-admin <email> [--role owner] [--password ...]
     python -m app.cli create-cr <email> --cohort CODE [--cohort CODE ...] [--name "..."]
+    python -m app.cli copy-db --source sqlite:///./smarttimetable.db   # into TT_DATABASE_URL
 """
 from __future__ import annotations
 
@@ -100,6 +101,20 @@ def _create_cr(args: argparse.Namespace) -> None:
     print(f"created class representative: {info[1]} cohorts={','.join(info[2])} id={info[0]}")
 
 
+def _copy_db(args: argparse.Namespace) -> None:
+    from app.core.config import settings
+    from app.services.copy_service import copy_database
+
+    if args.source == settings.database_url:
+        sys.exit("Source and target are the same database.")
+    print(f"copying {args.source} -> {engine.url.render_as_string(hide_password=True)}")
+    try:
+        counts = copy_database(args.source, engine)
+    except RuntimeError as exc:
+        sys.exit(str(exc))
+    print(f"done: {sum(counts.values())} rows in {len(counts)} tables")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="timetable")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -133,6 +148,10 @@ def main(argv: list[str] | None = None) -> None:
     ccr.add_argument("--name", default=None)
     ccr.add_argument("--password", default=None)
     ccr.set_defaults(func=_create_cr)
+
+    cp = sub.add_parser("copy-db", help="copy all rows from another database into TT_DATABASE_URL")
+    cp.add_argument("--source", required=True, help="SQLAlchemy URL of the database to copy from")
+    cp.set_defaults(func=_copy_db)
 
     args = parser.parse_args(argv)
     args.func(args)

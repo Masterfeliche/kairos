@@ -33,6 +33,7 @@ workflow for importing, reviewing and publishing revised timetables.
 | 15 | Phase 1 PoC results | `docs/14-phase1-poc-results.md` |
 | 16 | Phase 3 admin console | `docs/15-phase3-admin-console.md` |
 | 17 | Phase 4 student site | `docs/16-phase4-student-site.md` |
+| 18 | Deployment (deploy.tz + Postgres) | `docs/17-deployment.md` |
 
 ## Discovery tooling
 
