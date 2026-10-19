@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { backendBase, PROXY_HOP_HEADER } from "@/lib/backend";
 
 /**
  * Same-origin proxy for the FastAPI backend: the browser calls /api/* on the website and
@@ -12,18 +13,30 @@ export const dynamic = "force-dynamic";
 
 const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "upgrade", "host", "content-length"];
 
-function backendOrigin(): string {
-  return process.env.TT_BACKEND_ORIGIN || process.env.TT_API_BASE || "http://127.0.0.1:8000";
-}
-
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  // A request we forwarded has come back to us: the backend URL points at this website.
+  if (req.headers.get(PROXY_HOP_HEADER)) {
+    return Response.json(
+      { detail: "Misconfigured: the API URL points at the website itself. Set TT_BACKEND_ORIGIN to the API app." },
+      { status: 508 },
+    );
+  }
+  const origin = backendBase("proxy");
+  if (!origin) {
+    return Response.json(
+      { detail: "The website is not connected to the API yet (TT_BACKEND_ORIGIN is not set)." },
+      { status: 503 },
+    );
+  }
+
   const { path } = await ctx.params;
-  const target = new URL(`/api/${path.map(encodeURIComponent).join("/")}${req.nextUrl.search}`, backendOrigin());
+  const target = new URL(`/api/${path.map(encodeURIComponent).join("/")}${req.nextUrl.search}`, origin);
 
   const headers = new Headers(req.headers);
   for (const h of HOP_BY_HOP) headers.delete(h);
   headers.set("x-forwarded-host", req.headers.get("host") ?? req.nextUrl.host);
   headers.set("x-forwarded-proto", req.nextUrl.protocol.replace(":", ""));
+  headers.set(PROXY_HOP_HEADER, "1");
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
   let upstream: Response;
@@ -34,6 +47,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
       body: hasBody ? req.body : undefined,
       redirect: "manual",
       cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
       // Required by Node's fetch to stream a request body.
       ...(hasBody ? { duplex: "half" } : {}),
     } as RequestInit);

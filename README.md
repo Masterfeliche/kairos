@@ -15,11 +15,17 @@ them and post venue heads-ups. Admins import, review and publish timetable versi
 - Both read their settings **at request time**, so changing them needs a restart, not a
   rebuild:
 
-| Variable | Used by | Default |
+| Variable | Used by | If unset |
 |---|---|---|
-| `TT_BACKEND_ORIGIN` | `/api/*` proxy | `TT_API_BASE`, then `http://127.0.0.1:8000` |
-| `TT_API_BASE` | server-rendered pages | `http://127.0.0.1:8000` |
+| `TT_BACKEND_ORIGIN` | `/api/*` proxy | falls back to `TT_API_BASE` |
+| `TT_API_BASE` | server-rendered pages | falls back to `TT_BACKEND_ORIGIN` |
 | `TT_ALLOW_DRAFT_PREVIEW` | preview unpublished versions (dev/staging only) | `false` |
+
+In development an unset API URL means `http://127.0.0.1:8000`. In **production one of
+them is required**: the site itself listens on :8000, so that default would make the
+proxy call itself. Without it the site still serves pages but shows no timetable, and
+`/api/*` answers `503` with a message saying what to set. If the URL points at the
+website by mistake, `/api/*` answers `508` rather than looping.
 
 All times are East Africa Time (`lib/time.ts`), whatever the server's or visitor's clock says.
 
@@ -49,8 +55,10 @@ Environment:
 ```
 TT_BACKEND_ORIGIN=https://kairos-api.deploy.tz
 TT_API_BASE=https://kairos-api.deploy.tz
-NODE_ENV=production
 ```
+
+Build tools (TypeScript, Tailwind) are regular `dependencies`, so the build also works when
+the host sets `NODE_ENV=production` during `npm install`.
 
 deploy.tz builds the Node stack with `npm install` → `npm run build` → `npm start`. The
 `start` script listens on `0.0.0.0:8000`.

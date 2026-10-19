@@ -1,7 +1,7 @@
-// Server-side data access for the student site.
-// In dev the Next server fetches the FastAPI backend directly (the browser uses the
-// /api rewrite instead). Draft preview is opt-in via TT_ALLOW_DRAFT_PREVIEW.
-const BASE = process.env.TT_API_BASE || "http://127.0.0.1:8000";
+// Server-side data access for the student site: server components fetch the FastAPI
+// backend directly (the browser goes through the /api proxy instead). Draft preview is
+// opt-in via TT_ALLOW_DRAFT_PREVIEW.
+import { backendBase } from "@/lib/backend";
 
 export const PREVIEW = process.env.TT_ALLOW_DRAFT_PREVIEW === "true";
 
@@ -11,8 +11,13 @@ export function withPreview(path: string): string {
 }
 
 export async function serverApi<T>(path: string): Promise<T | null> {
+  const base = backendBase("server");
+  if (!base) return null;
   try {
-    const res = await fetch(`${BASE}${withPreview(path)}`, { cache: "no-store" });
+    const res = await fetch(`${base}${withPreview(path)}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
